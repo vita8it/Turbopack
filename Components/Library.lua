@@ -1,7 +1,5 @@
 local _ENV = (getgenv or getrenv or getfenv)()
 
-local Types = game.RunService:IsStudio() and require(game.ReplicatedStorage.Typing) or {}
-
 local clonefunction = clonefunction or function( ... ) return ... end
 local cloneref = cloneref or function( ... ) return ... end
 
@@ -27,7 +25,7 @@ local Nodes, Cached = {}, {} do
 
             return Reference[Service]
         end,
-    }):: Types.Service
+    })
 end
 
 local Service = Nodes.Service
@@ -126,7 +124,7 @@ Nodes.FontSemi = (function()
     )
 end)()
 
-Nodes.New = function(Class: Types.GuiClass, Properties: { [ string ]: any }): GuiObject
+Nodes.New = function(Class, Properties: { [ string ]: any }): GuiObject
     local Creations = Instance.new(Class)
 
     for Property, Value in Properties do
@@ -151,7 +149,7 @@ Nodes.Button = function(Parent: GuiObject): TextButton
     })
 end
 
-Nodes.Tween = function(Object: Instance, Info: Types.TweenInfoData)
+Nodes.Tween = function(Object: Instance, Info)
     return TweenService:Create(
         Object,
         TweenInfo.new(
