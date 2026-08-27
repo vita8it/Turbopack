@@ -898,8 +898,8 @@ Nodes.BuildElements = function(App, Args)
                     if Index == 'Value' then
                         local SelectColor = Value and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 0, 0)
                         
-                        Active.TextLabel.Text = Value and "Spawned" or "Despawn"
-                        Active.TextLabel.TextColor3 = SelectColor
+                        Active.Title.Text = Value and "Spawned" or "Despawn"
+                        Active.Title.TextColor3 = SelectColor
                         Active.BackgroundColor3 = SelectColor
                         Active.UIStroke.Color = SelectColor
                     end
@@ -1696,6 +1696,27 @@ Nodes.BuildElements = function(App, Args)
 
                 table.clear(Paragraph.SelectedValues)
                 Paragraph.SelectedOrder = 0
+            end
+
+            Paragraph.Description = Paragraph:GetDesc()
+        end
+        
+        function Paragraph:ClearAll()
+            for _, Child in DropdownScroll:GetChildren() do
+                if Child.Name == "NewList" then
+                    Child:Destroy()
+                end
+            end
+
+            table.clear(Paragraph.SelectedValues)
+            table.clear(Paragraph.Lists)
+            
+            Paragraph.SelectedOrder = 0
+
+            if IsMulti then
+                Info.Value = {}
+            else
+                Info.Value = "None"
             end
 
             Paragraph.Description = Paragraph:GetDesc()
@@ -2679,6 +2700,7 @@ Nodes.Application = function(Folder, Args)
                 BackgroundColor3 = Color3.fromRGB(24, 24, 24),
                 Name = "Scale",
                 Parent = NewNotify,
+                BackgroundTransparency = 0.05,
                 Size = UDim2.new(1, 0, 1, 0),
                 Position = UDim2.new(1.1, 0, 0, 0)
             }) do
@@ -4875,12 +4897,19 @@ Nodes.Application = function(Folder, Args)
     end)
     
     Application:NewElement("@Pillow", function()
+        local PillowScreen = Nodes.New("ScreenGui", {
+            Name = Folder,
+            Parent = Nodes.Parent,
+            ZIndexBehavior = Enum.ZIndexBehavior.Global,
+            IgnoreGuiInset = true,
+        })
+        
         local Pillow = Nodes.New("TextButton", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
             Name = "Pillow",
-            Parent = Framework.ScreenGui,
-            Position = UDim2.new(0.06, 0, 0.15, 0),
+            Parent = PillowScreen,
+            Position = UDim2.new(0.06, 0, 0.35, 0),
             Size = UDim2.new(0, 50, 0, 50),
             Text = "",
             ZIndex = 999,
