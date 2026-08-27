@@ -587,7 +587,7 @@ Nodes.GoodSignal = (function()
     end
 
     function Signal:Fire(...)
-        for _, connection in ipairs(self._connections) do
+        for _, connection in self._connections do
             connection:Fire(...)
         end
     end
@@ -601,6 +601,19 @@ Nodes.UpdateLine = function(Rows)
             Row.Line.Visible = (Index ~= #Rows)
         end
     end
+end
+
+Nodes.ScrollTo = function(ScrollingFrame, Target)
+    Nodes.Tween(ScrollingFrame, {
+        Time = 1,
+        Style = 'Exponential',
+        Direction = "Out",
+        Goal = {
+            CanvasPosition = Vector2.new(
+                0, Target.AbsolutePosition.Y - ScrollingFrame.AbsolutePosition.Y
+            )
+        }
+    }):Play()
 end
 
 Nodes.NewRow = function(Parent, Args)
@@ -629,6 +642,7 @@ Nodes.NewRow = function(Parent, Args)
         })
 
         RowModule.Line = Rows.Line
+        Rows:SetAttribute('Dropdown', Args.IsDropdown)
     end
 
     local Left = Nodes.New("Frame", {
@@ -698,7 +712,7 @@ Nodes.NewRow = function(Parent, Args)
                     TextTransparency = 0.5,
                     TextXAlignment = TextXAlignment.Left,
                 }) 
-
+                
                 RowModule.Desc = Text.Desc
             end
         end
@@ -772,11 +786,12 @@ Nodes.BuildElements = function(App, Args)
     function Elements:Paragraph(Settings)
         local Row = Nodes.NewRow(Module.Section, {
             Title = Settings.Title,
-            Desc = Settings.Description
+            Desc = Settings.Description,
+            IsDropdown = Settings.IsDropdown or false
         })
 
         function Row:Typography(Text)
-            local Contents: TextLabel = Nodes.New("TextLabel", {
+            local Contents = Nodes.New("TextLabel", {
                 AutomaticSize = AutomaticSize.XY,
                 BackgroundTransparency = 1,
                 FontFace = Nodes.FontMedium,
@@ -1389,6 +1404,7 @@ Nodes.BuildElements = function(App, Args)
         local Paragraph = self:Paragraph({
             Title = Settings.Title,
             Description = "None",
+            IsDropdown = true
         })
 
         local Right = Paragraph.Right
@@ -1412,7 +1428,7 @@ Nodes.BuildElements = function(App, Args)
             Parent = Framework.Window,
             Position = UDim2.new(0.5, 0, 0.3, 0),
             Visible = false,
-            Size = UDim2.new(0, 300, 0, 250),
+            Size = UDim2.new(0, 400,0, 250),
         }) do
             Nodes.New("UICorner", {
                 BottomLeftRadius = UDim.new(0, 16),
@@ -1573,7 +1589,6 @@ Nodes.BuildElements = function(App, Args)
 
         function Paragraph:CloseDropdown()
             IsShowing = false
-
             NewDropdown.Visible = false
             NewDropdown.Position = UDim2.new(0.5, 0, 0.3, 0)
         end
@@ -1599,13 +1614,23 @@ Nodes.BuildElements = function(App, Args)
                 return false
             end
 
-            for _, Allowed in ipairs(Table) do
+            for _, Allowed in Table do
                 if Allowed == Value then
                     return true
                 end
             end
 
             return false
+        end
+
+        function Paragraph:MoveToTop(Target)
+            for _, List in DropdownScroll:GetChildren() do
+                if List.Name == "NewList" and List ~= Target then
+                    List.LayoutOrder += 1
+                end
+            end
+
+            Target.LayoutOrder = 1
         end
 
         function Paragraph:RefreshSelected()
@@ -1624,7 +1649,7 @@ Nodes.BuildElements = function(App, Args)
 
             local Result = {}
 
-            for Index, Data in ipairs(Selected) do
+            for Index, Data in Selected do
                 Result[Index] = Data.Name
 
                 local List = Paragraph.Lists[Data.Name]
@@ -1651,11 +1676,21 @@ Nodes.BuildElements = function(App, Args)
 
                 table.clear(Paragraph.SelectedValues)
 
-                for Index, Name in ipairs(Info.Value) do
+                for Index, Name in Info.Value do
                     Paragraph.SelectedValues[Name] = Index
                 end
 
                 Paragraph.SelectedOrder = #Info.Value
+
+                for Name, List in Paragraph.Lists do
+                    local Order = Paragraph.SelectedValues[Name]
+
+                    if Order then
+                        List.LayoutOrder = Order
+                    else
+                        List.LayoutOrder = #Info.List + (table.find(Info.List, Name) or 0)
+                    end
+                end
             else
                 Info.Value = NewValue or "None"
 
@@ -1672,6 +1707,7 @@ Nodes.BuildElements = function(App, Args)
                 Name = "NewList",
                 Parent = DropdownScroll,
                 Size = UDim2.new(1, 0, 0, 40),
+                LayoutOrder = table.find(Info.List, Name) or 0,
             })
 
             Nodes.New("Frame", {
@@ -1788,12 +1824,15 @@ Nodes.BuildElements = function(App, Args)
                 if IsMulti then
                     if Paragraph.SelectedValues[Name] ~= nil then
                         Paragraph.SelectedValues[Name] = nil
-
                         OnValue(false)
+
+                        local OriginalOrder = table.find(Info.List, Name) or 0
+                        NewList.LayoutOrder = #Info.List + OriginalOrder
                     else
                         Paragraph.SelectedOrder += 1
                         Paragraph.SelectedValues[Name] = Paragraph.SelectedOrder
 
+                        Paragraph:MoveToTop(NewList)
                         OnValue(true)
                     end
 
@@ -1802,16 +1841,14 @@ Nodes.BuildElements = function(App, Args)
                     Info.Value = Selected
                     Paragraph.Description = Paragraph:GetDesc()
 
-                    pcall(
+                    return pcall(
                         Info.Callback,
                         Paragraph,
                         Info.Value
                     )
-
-                    return
                 end
 
-                for _, Child in ipairs(DropdownScroll:GetChildren()) do
+                for _, Child in DropdownScroll:GetChildren() do
                     if Child.Name == "NewList" then
                         local ChildActived = Child:FindFirstChild("Actived")
                         local ChildRight = Child:FindFirstChild("Right")
@@ -1889,7 +1926,7 @@ Nodes.BuildElements = function(App, Args)
         SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
             local SearchText = string.lower(SearchInput.Text)
 
-            for _, List in ipairs(DropdownScroll:GetChildren()) do
+            for _, List in DropdownScroll:GetChildren() do
                 if List.Name == "NewList" then
                     local Left = List:FindFirstChild("Left")
                     local Title = Left and Left:FindFirstChild("Title")
@@ -1959,7 +1996,7 @@ Nodes.BuildElements = function(App, Args)
 
         Paragraph:SetValue(Info.Value)
 
-        for _, Name in ipairs(Info.List) do
+        for _, Name in Info.List do
             Paragraph:AddList(Name)
         end
 
@@ -2565,6 +2602,7 @@ Nodes.Application = function(Folder, Args)
                     Cached.WindowPosition = Window.Position
                 end
 
+                Framework.ScreenGui.IgnoreGuiInset = not IsFullScreen
                 Window.UICorner.CornerRadius = UDim.new(0, Radius)
                 Framework.HeadCorner.TopRightRadius = UDim.new(0, Radius)
                 
@@ -3089,136 +3127,171 @@ Nodes.Application = function(Folder, Args)
             local ThumbnailSize = Enum.ThumbnailSize
             
             local Profile = Nodes.New("Frame", {
-                BackgroundColor3 = Color3.fromRGB(30, 30, 30),
                 Name = "Profile",
                 Parent = Maintab,
-                Size = UDim2.new(1, -20, 0, 50),
+                Size = UDim2.new(1, 0, 0, 60),
+                BackgroundColor3 = Color3.fromRGB(20, 20, 20),
             }) do
                 Nodes.New("UICorner", {
-                    BottomLeftRadius = UDim.new(0, 10),
-                    TopLeftRadius = UDim.new(0, 10),
-                    BottomRightRadius = UDim.new(1, 0),
-                    TopRightRadius = UDim.new(1, 0),
                     Parent = Profile,
-                })
-                
-                Nodes.New("UIShadow", {
-                    Parent = Profile,
-                    BlurRadius = UDim.new(0, 5),
-                    Transparency = 0.75
+                    TopRightRadius = UDim.new(0, 0),
+                    BottomRightRadius = UDim.new(0, 0),
+                    TopLeftRadius = UDim.new(0, 0),
+                    BottomLeftRadius = UDim.new(0, 16),
                 })
             end
 
-            local Right = Nodes.New("Frame", {
+            local Line = Nodes.New("Frame", {
+                Name = "Line",
+                Parent = Profile,
+                Size = UDim2.new(1, 0, 0, 1),
+                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+            })
+
+            local Left = Nodes.New("Frame", {
+                Name = "Left",
+                Parent = Profile,
+                Size = UDim2.new(1, 0, 1, -1),
                 BackgroundTransparency = 1,
+            }) do
+                Nodes.New("UIListLayout", {
+                    Parent = Left,
+                    Padding = UDim.new(0, 10),
+                    FillDirection = FillDirection.Horizontal,
+                    SortOrder = SortOrder.LayoutOrder,
+                    VerticalAlignment = VerticalAlignment.Center,
+                })
+
+                Nodes.New("UIPadding", {
+                    Parent = Left,
+                    PaddingLeft = UDim.new(0, 12),
+                })
+            end
+
+            local Avatar = Nodes.New("ImageLabel", {
+                Name = "Avatar",
+                Parent = Left,
+                Size = UDim2.new(0, 40, 0, 40),
+                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+            }) do
+                Nodes.New("UICorner", {
+                    Parent = Avatar,
+                    CornerRadius = UDim.new(1, 0),
+                })
+                
+                Nodes.New("UIShadow", {
+                    Parent = Avatar,
+                    BlurRadius = UDim.new(0, 3),
+                    Transparency = 0.75,
+                })
+            end
+
+            local Text = Nodes.New("Frame", {
+                Name = "Text",
+                Parent = Left,
+                Size = UDim2.new(0, 0, 0, 0),
+                AutomaticSize = AutomaticSize.XY,
+                BackgroundTransparency = 1,
+            }) do
+                Nodes.New("UIListLayout", {
+                    Parent = Text,
+                    Padding = UDim.new(0, 2),
+                    SortOrder = SortOrder.LayoutOrder,
+                    VerticalAlignment = VerticalAlignment.Center,
+                })
+            end
+
+            local Title = Nodes.New("TextLabel", {
+                Name = "Title",
+                Parent = Text,
+                Size = UDim2.new(0, 0, 0, 0),
+                AutomaticSize = AutomaticSize.XY,
+                BackgroundTransparency = 1,
+                FontFace = Nodes.FontMedium,
+                Text = "Welcome",
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextSize = 15,
+                TextXAlignment = TextXAlignment.Left,
+            })
+
+            local Username = Nodes.New("TextLabel", {
+                Name = "Username",
+                Parent = Text,
+                Size = UDim2.new(0, 80, 0, 0),
+                AutomaticSize = AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                FontFace = Nodes.FontMedium,
+                Text = "None",
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextSize = 12,
+                TextTransparency = 0.5,
+                TextTruncate = TextTruncate.AtEnd,
+                TextXAlignment = TextXAlignment.Left,
+            })
+
+            local Right = Nodes.New("Frame", {
                 Name = "Right",
                 Parent = Profile,
                 Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
             }) do
                 Nodes.New("UIListLayout", {
+                    Parent = Right,
+                    Padding = UDim.new(0, 10),
                     FillDirection = FillDirection.Horizontal,
                     SortOrder = SortOrder.LayoutOrder,
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Parent = Right,
-                })
-            end
-            
-            local Background = Nodes.New("Frame", {
-                BackgroundColor3 = Color3.fromRGB(21, 21, 21),
-                Name = "Background",
-                Parent = Right,
-                Size = UDim2.new(0, 50, 1, 0),
-            }) do
-                Nodes.New("UICorner", {
-                    CornerRadius = UDim.new(1, 0),
-                    Parent = Background,
-                })
-            end
-            
-            local ProfileData = Nodes.New("ImageLabel", {
-                BackgroundTransparency = 1,
-                Name = "ProfileData",
-                Parent = Background,
-                Size = UDim2.new(1, 0, 1, 0),
-                ScaleType = ScaleType.Crop,
-            }) do
-                Nodes.New("UICorner", {
-                    CornerRadius = UDim.new(1, 0),
-                    Parent = ProfileData,
-                })
-                
-                task.defer(function()
-                    local Success, Image = pcall(
-                        Players.GetUserThumbnailAsync,
-                        Players, Player.UserId,
-                        ThumbnailType.HeadShot,
-                        ThumbnailSize.Size100x100
-                    )
-
-                    if Success then
-                        ProfileData.Image = Image
-                    end
-                end)
-            end
-
-            local Left = Nodes.New("Frame", {
-                BackgroundTransparency = 1,
-                Name = "Left",
-                Parent = Profile,
-                Size = UDim2.new(1, 0, 1, 0),
-            }) do
-                Nodes.New("UIListLayout", {
-                    Padding = UDim.new(0, 2),
-                    SortOrder = SortOrder.LayoutOrder,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Parent = Left,
                 })
 
                 Nodes.New("UIPadding", {
-                    PaddingLeft = UDim.new(0, 20),
-                    Parent = Left,
-                })
-
-                Nodes.New("TextLabel", {
-                    AutomaticSize = AutomaticSize.Y,
-                    BackgroundTransparency = 1,
-                    Name = "Title",
-                    Parent = Left,
-                    Size = UDim2.new(0, 100, 0, 0),
-                    TextTruncate = TextTruncate.AtEnd,
-                    FontFace = Nodes.FontMedium,
-                    Text = "Welcome",
-                    TextColor3 = Color3.fromRGB(255, 255, 255),
-                    TextSize = 15,
-                    TextXAlignment = TextXAlignment.Left,
-                })
-                
-                local function CensorName(Name)
-                    if #Name <= 2 then
-                        return string.rep("*", #Name)
-                    end
-
-                    return string.sub(Name, 1, 1)
-                        .. string.rep("*", #Name - 2)
-                        .. string.sub(Name, -1)
-                end
-
-                Nodes.New("TextLabel", {
-                    AutomaticSize = AutomaticSize.Y,
-                    BackgroundTransparency = 1,
-                    Name = "Username",
-                    Parent = Left,
-                    Size = UDim2.new(0, 100, 0, 0),
-                    TextTruncate = TextTruncate.AtEnd,
-                    FontFace = Nodes.FontMedium,
-                    Text = CensorName(Player.Name),
-                    TextColor3 = Color3.fromRGB(255, 255, 255),
-                    TextSize = 12,
-                    TextTransparency = 0.5,
-                    TextXAlignment = TextXAlignment.Left,
+                    Parent = Right,
+                    PaddingRight = UDim.new(0, 10),
                 })
             end
+
+            local Outter = Nodes.New("Frame", {
+                Name = "Outter",
+                Parent = Right,
+                Size = UDim2.new(0, 40, 0, 40),
+                BackgroundTransparency = 1,
+            })
+
+            local Icon = Nodes.New("ImageLabel", {
+                Name = "Icon",
+                Parent = Outter,
+                Size = UDim2.new(0.5, 0, 0.5, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Image = "rbxassetid://106575150727113",
+                ImageColor3 = Color3.fromRGB(255, 170, 0),
+                ImageTransparency = 0.5,
+            })
+            
+            task.defer(function()
+                local Success, Image = pcall(
+                    Players.GetUserThumbnailAsync,
+                    Players, Player.UserId,
+                    ThumbnailType.HeadShot,
+                    ThumbnailSize.Size420x420
+                )
+
+                if Success then
+                    Avatar.Image = Image
+                    
+                    Username.Text = Player.Name:gsub("[aeiouAEIOU]", function()
+                        return string.char(37, 42, 35):sub(math.random(1, 3), math.random(1, 3))
+                    end)
+                else
+                    Application:Notification({
+                        Title = 'Error',
+                        Description = "Avatar load failed.",
+                        Icon = 80212074789397,
+                        Duration = 5
+                    })
+                end
+            end)
         end)
     end)
     
@@ -4037,7 +4110,7 @@ Nodes.Application = function(Folder, Args)
                             Data.Title.Text = Data.OriginalTitle
                             Data.SectionTitle.Text = Data.OriginalSectionTitle
 
-                            if Data.Desc then
+                            if Data.Desc and not Data.Row:GetAttribute('Dropdown') then
                                 Data.Desc.RichText = false
                                 Data.Desc.Text = Data.OriginalDesc
                             end
@@ -4077,7 +4150,7 @@ Nodes.Application = function(Folder, Args)
                                     Info
                                 )
 
-                                if Data.Desc then
+                                if Data.Desc and not Data.Row:GetAttribute('Dropdown') then
                                     Data.Desc.RichText = true
                                     Data.Desc.Text = Nodes.Highlight(
                                         Data.OriginalDesc,
@@ -4101,7 +4174,7 @@ Nodes.Application = function(Folder, Args)
                                 Data.Title.RichText = false
                                 Data.Title.Text = Data.OriginalTitle
 
-                                if Data.Desc then
+                                if Data.Desc and not Data.Row:GetAttribute('Dropdown') then
                                     Data.Desc.RichText = false
                                     Data.Desc.Text = Data.OriginalDesc
                                 end
@@ -4468,6 +4541,8 @@ Nodes.Application = function(Folder, Args)
                 SelectTab:SetAttribute("OnPage", IsSelected)
 
                 local State = IsSelected and "Selected" or "UnSelect"
+                
+                Nodes.ScrollTo(Tabscrolling, SelectTab)
 
                 Nodes.MultiTweens(
                     SelectTab,
@@ -4545,6 +4620,21 @@ Nodes.Application = function(Folder, Args)
                     TabModule.OnBindable(TabModule.Order)
                 end
             end)
+            
+            function TabModule:Switch()
+                if not Tab:GetAttribute('OnPage') then
+                    TabModule.OnBindable(TabModule.Order)
+                end
+            end
+            
+            function TabModule:ScrollTo(Target)
+                if not Target then return end
+                if not Target:IsDescendantOf(Page) then return end
+                
+                task.delay(1, function()
+                    Nodes.ScrollTo(Page, Target)
+                end)
+            end
             
             function TabModule:Section(Text)
                 local SectionModule = {
@@ -4782,6 +4872,65 @@ Nodes.Application = function(Folder, Args)
         end)
         
         return Elements
+    end)
+    
+    Application:NewElement("@Pillow", function()
+        local Pillow = Nodes.New("TextButton", {
+            AnchorPoint = Vector2.new(0, 1),
+            BackgroundTransparency = 1,
+            Name = "Pillow",
+            Parent = Framework.ScreenGui,
+            Position = UDim2.new(0.06, 0, 0.15, 0),
+            Size = UDim2.new(0, 50, 0, 50),
+            Text = "",
+            ZIndex = 999,
+            AutoButtonColor = false,
+        })
+
+        local Background = Nodes.New("ImageLabel", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = "Background",
+            Parent = Pillow,
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(1, 0, 1, 0),
+            Image = "rbxassetid://105462327036706",
+            ImageColor3 = Color3.fromRGB(22, 22, 22),
+            ImageContent = Content.fromUri("rbxassetid://105462327036706"),
+        })
+
+        local LogoImage = Nodes.New("ImageLabel", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundTransparency = 1,
+            Name = "Logo",
+            Parent = Background,
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 25, 0, 25),
+            Image = Nodes.Asset(Logo),
+            ScaleType = ScaleType.Crop,
+        })
+
+        local Scale = Nodes.New("UIScale", {
+            Parent = Background,
+            Scale = 1,
+        })
+
+        Pillow.MouseButton1Click:Connect(function()
+            Framework.Window.Visible = not Framework.Window.Visible
+
+            Scale.Scale = 0.8
+            
+            Nodes.Tween(Scale, {
+                Time = 0.35,
+                Style = "Back",
+                Direction = "Out",
+                Goal = { Scale = 1 }
+            }):Play()
+        end)
+
+        Nodes.Draggable(Pillow, function()
+            return Cached.IsResizing
+        end)
     end)
     
     return Application
