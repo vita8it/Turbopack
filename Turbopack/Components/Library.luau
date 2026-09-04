@@ -9,7 +9,7 @@ local cloneref = cloneref or function( ... ) return ... end
 local Nodes, Cached = {}, {} do
     Nodes.Game = cloneref(game)
     Nodes.Cloner = clonefunction(Nodes.Game.GetService)
-    
+
     Nodes.Service = setmetatable({
         Reference = {}, Inference = {}
     }, {
@@ -70,6 +70,7 @@ local SortOrder= Enum.SortOrder
 local FontWeight = Enum.FontWeight
 local FontStyle = Enum.FontStyle
 
+Nodes.TextLabels = {}
 Nodes.ButtonColorsMap = {
     ['Primary'] = {
         Title = Color3.fromRGB(0, 0, 0),
@@ -93,14 +94,14 @@ Nodes.Parent = (function()
     if not RunService:IsStudio() then
         return (gethui and gethui()) or CoreGui
     end
-    
+
     return PlayerGui
 end)()
 
 Nodes.IsMobile = (function()
     local TouchEnabled = UserInputService.TouchEnabled
     local KeyboardEnabled = UserInputService.KeyboardEnabled
-    
+
     return TouchEnabled and not KeyboardEnabled and true
 end)()
 
@@ -133,15 +134,27 @@ Nodes.FontSemi = (function()
     )
 end)()
 
+Nodes.IsThaiCharacter = function(Text)
+    return Text:find("[ก-ฮ]")
+end
+
 Nodes.New = function(Class: Types.GuiClass, Properties: { [ string ]: any }): GuiObject
-    local Creations = Instance.new(Class)
+    local Creations: TextLabel = Instance.new(Class)
 
     for Property, Value in Properties do
         Creations[Property] = Value
     end
-    
+
     if Class == "Frame" then
         Creations.BorderSizePixel = 0
+    end
+
+    if Class == 'TextLabel' then
+        Nodes.TextLabels[Creations] = Creations.Text
+
+        if Nodes.IsThaiCharacter(Creations.Text) and Creations.TextSize < 14 then
+            Creations.TextSize = 14
+        end
     end
 
     return Creations
@@ -210,11 +223,11 @@ end
 
 Nodes.ToDictionary = function(List, Value)
     local NewList = {}
-    
+
     for _, Name in List do
         NewList[Name] = Value
     end
-    
+
     return NewList
 end
 
@@ -242,7 +255,7 @@ Nodes.Draggable = setmetatable({
             [ UserInputState.End ] = true,
         },
     },
-    
+
     Acceleration = 0.1,
     States = {},
 
@@ -333,7 +346,7 @@ Nodes.Resizing = setmetatable({
         if self.Cached[Frame] then return end
 
         local State = self.States[Frame]
-        
+
         local SideSize = self.SideSize
         local SideOffset = SideSize.X.Offset
 
@@ -349,9 +362,9 @@ Nodes.Resizing = setmetatable({
 
         local function MakeResizable(Handle, Direction)
             local ResizeStart, StartSize, StartPos, StartUDim = nil, nil, nil, nil
-            
+
             Handle.ZIndex = 999
-            
+
             Nodes.New("UICorner", {
                 CornerRadius = UDim.new(1, 0),
                 Parent = Handle
@@ -359,12 +372,12 @@ Nodes.Resizing = setmetatable({
 
             Handle.InputBegan:Connect(function(Input)
                 if Cached.IsFullScreen then return end
-                
+
                 if Input.UserInputType ~= UserInputType.MouseButton1
                     and Input.UserInputType ~= UserInputType.Touch then
                     return
                 end
-                
+
                 Nodes.Tween(Handle, {
                     Time = 0.15,
                     Style = "Linear",
@@ -393,7 +406,7 @@ Nodes.Resizing = setmetatable({
                         StartSize = nil
                         StartPos = nil
                         StartUDim = nil
-                        
+
                         Nodes.Tween(Handle, {
                             Time = 0.15,
                             Style = "Linear",
@@ -408,7 +421,7 @@ Nodes.Resizing = setmetatable({
 
             UserInputService.InputChanged:Connect(function(Input)
                 if Cached.IsFullScreen then return end
-                
+
                 if not ResizeStart or not StartSize or not StartPos or not StartUDim then return end
                 if Input.UserInputType ~= UserInputType.MouseMovement and Input.UserInputType ~= UserInputType.Touch then return end
 
@@ -659,7 +672,7 @@ Nodes.NewRow = function(Parent, Args)
             VerticalAlignment = VerticalAlignment.Center,
             Parent = Left,
         })
-        
+
         Nodes.New("UIPadding", {
             PaddingLeft = UDim.new(0, 15),
             PaddingRight = UDim.new(0, 15),
@@ -667,7 +680,7 @@ Nodes.NewRow = function(Parent, Args)
             PaddingBottom = UDim.new(0, CurrentPadding),
             Parent = Left,
         })
-        
+
         local Text = Nodes.New("Frame", {
             AutomaticSize = AutomaticSize.XY,
             BackgroundTransparency = 1,
@@ -675,8 +688,11 @@ Nodes.NewRow = function(Parent, Args)
             Parent = Left,
             Size = UDim2.new(0, 0, 0, 0),
         }) do
+            local IsThai = Info.Desc and Nodes.IsThaiCharacter(Info.Desc)
+            local LayoutPadding = IsThai and 0 or 2
+
             Nodes.New("UIListLayout", {
-                Padding = UDim.new(0, 2),
+                Padding = UDim.new(0, LayoutPadding),
                 SortOrder = SortOrder.LayoutOrder,
                 VerticalAlignment = VerticalAlignment.Center,
                 Parent = Text,
@@ -712,7 +728,7 @@ Nodes.NewRow = function(Parent, Args)
                     TextTransparency = 0.5,
                     TextXAlignment = TextXAlignment.Left,
                 }) 
-                
+
                 RowModule.Desc = Text.Desc
             end
         end
@@ -745,7 +761,7 @@ Nodes.NewRow = function(Parent, Args)
             Rows[Side].UIPadding[Index] = UDim.new(0, Value)
         end
     end
-    
+
     function RowModule:Layout(Side, Value)
         Rows[Side].UIListLayout.Padding = UDim.new(0, Value)
     end
@@ -764,7 +780,7 @@ Nodes.BuildElements = function(App, Args)
         Module.Section = Args.Section
         Module.Page = Args.Page
     end
-    
+
     function Module:AddSearching(Row, Settings)
         table.insert(Module.Rows, Row)
         Nodes.UpdateLine(Module.Rows)
@@ -804,13 +820,13 @@ Nodes.BuildElements = function(App, Args)
                 TextSize = 12,
                 TextXAlignment = TextXAlignment.Left,
             })
-            
+
             Contents:GetAttributeChangedSignal('Text'):Connect(function()
                 Row:Padding("Left", {
                     PaddingRight = Contents.AbsoluteSize.X + 25
                 })
             end)
-            
+
             task.defer(function()
                 Row:Padding("Left", {
                     PaddingRight = Contents.AbsoluteSize.X + 25
@@ -834,7 +850,7 @@ Nodes.BuildElements = function(App, Args)
                 Image = Nodes.Asset(Id),
                 ImageTransparency = 0.5,
             })
-            
+
             Row:Padding("Left", {
                 PaddingRight = Icon.AbsoluteSize.X + 25
             })
@@ -847,9 +863,10 @@ Nodes.BuildElements = function(App, Args)
                 end,
             })
         end
-        
-        function Row:Status(value)
-            local SelectColor = value and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 0, 0)
+
+        function Row:Status(Value)
+            local SelectColor = Value and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 0, 0)
+
             local Active = Nodes.New("Frame", {
                 BackgroundColor3 = SelectColor,
                 BackgroundTransparency = 0.9,
@@ -861,47 +878,62 @@ Nodes.BuildElements = function(App, Args)
                     Parent = Active,
                 })
 
-                Nodes.New("UIStroke", {
-                    Color = SelectColor,
-                    Thickness = 0.5,
-                    Transparency = 0.45,
-                    Parent = Active,
-                })
-
-                Nodes.New("TextLabel", {
-                    AnchorPoint = Vector2.new(0.5, 0.5),
-                    BackgroundTransparency = 1,
-                    Name = "Title",
-                    Parent = Active,
-                    Position = UDim2.new(0.5, 0, 0.5, -1),
-                    Size = UDim2.new(1, -20, 1, 0),
-                    FontFace = Nodes.FontMedium,
-                    Text = value and "Spawned" or "Despawn",
-                    TextColor3 = SelectColor,
-                    TextSize = 11,
-                })
-                
                 Nodes.New("UIShadow", {
                     Parent = Active,
                     Transparency = 0.55,
-                    BlurRadius = UDim.new(0, 5)
+                    BlurRadius = UDim.new(0, 5),
                 })
             end
-            
-            Row:Padding("Left", {
-                PaddingRight = Active.AbsoluteSize.X + 25
+
+            local Title = Nodes.New("TextLabel", {
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundTransparency = 1,
+                Name = "Title",
+                Parent = Active,
+                Position = UDim2.new(0.5, 0, 0.5, -1),
+                Size = UDim2.new(1, -20, 1, 0),
+                FontFace = Nodes.FontMedium,
+                Text = Value and "Spawned" or "Despawn",
+                TextColor3 = SelectColor,
+                TextSize = 11,
             })
-            
-            return setmetatable({}, {
-                __index = Active,
-                __newindex = function(_, Index, Value)
-                    if Index == 'Value' then
-                        local SelectColor = Value and Color3.fromRGB(0, 255, 127) or Color3.fromRGB(255, 0, 0)
-                        
-                        Active.Title.Text = Value and "Spawned" or "Despawn"
-                        Active.Title.TextColor3 = SelectColor
+
+            local Stroke = Nodes.New("UIStroke", {
+                Color = SelectColor,
+                Thickness = 0.5,
+                Transparency = 0.45,
+                Parent = Active,
+            })
+
+            Row:Padding("Left", {
+                PaddingRight = Active.AbsoluteSize.X + 25,
+            })
+
+            local Object = {}
+
+            return setmetatable(Object, {
+                __index = function(_, Index)
+                    if Index == "Value" then
+                        return Value
+                    end
+
+                    return Active[Index]
+                end,
+                __newindex = function(_, Index, NewValue)
+                    if Index == "Value" then
+                        Value = NewValue
+
+                        local SelectColor = NewValue
+                            and Color3.fromRGB(0, 255, 127)
+                            or Color3.fromRGB(255, 0, 0)
+
+                        Title.Text = NewValue and "Spawned" or "Despawn"
+                        Title.TextColor3 = SelectColor
+
                         Active.BackgroundColor3 = SelectColor
-                        Active.UIStroke.Color = SelectColor
+                        Stroke.Color = SelectColor
+                    else
+                        Active[Index] = NewValue
                     end
                 end,
             })
@@ -924,7 +956,7 @@ Nodes.BuildElements = function(App, Args)
             end,
         })
     end
-    
+
     function Elements:Button(Settings)
         local Paragarph = self:Paragraph(Settings)
 
@@ -964,7 +996,7 @@ Nodes.BuildElements = function(App, Args)
                 TextXAlignment = TextXAlignment.Center,
             })
         end
-        
+
         Nodes.New("UIShadow", {
             Parent = Button,
             Transparency = 0.5,
@@ -978,11 +1010,11 @@ Nodes.BuildElements = function(App, Args)
                 PaddingRight = Button.AbsoluteSize.X + 25
             })
         end)
-        
+
         Nodes.Button(Button).MouseButton1Click:Connect(function()
             if App:IsDropdownOpen() then return end
             if Info.Type == 'Disabled' then return end
-            
+
             Nodes.Tween(Button.UIShadow, {
                 Time = 0.15,
                 Style = "Linear",
@@ -991,9 +1023,9 @@ Nodes.BuildElements = function(App, Args)
                     BlurRadius = UDim.new(0, 1)
                 }
             }):Play()
-            
+
             Button.Title.TextSize = 14
-            
+
             task.delay(0.1, function()
                 Nodes.Tween(Button.UIShadow, {
                     Time = 0.15,
@@ -1003,36 +1035,36 @@ Nodes.BuildElements = function(App, Args)
                         BlurRadius = UDim.new(0, 5)
                     }
                 }):Play()
-                
+
                 Button.Title.TextSize = 12
             end)
-            
-			if Info.Type == 'Danger' then
-				App:Dialog({
-					Title = Settings.Title,
-					Description = "Are you sure?",
-					Content = Settings.Description,
-					Icon = 115960025411300,
-					Callback = function(State)
-						if State then
-							task.spawn(pcall, Info.Callback)
-						end
-					end,
 
-				})
-			else
-				task.spawn(pcall, Info.Callback, Paragarph)
-			end
+            if Info.Type == 'Danger' then
+                App:Dialog({
+                    Title = Settings.Title,
+                    Description = "Are you sure?",
+                    Content = Settings.Description,
+                    Icon = 115960025411300,
+                    Callback = function(State)
+                        if State then
+                            task.spawn(pcall, Info.Callback)
+                        end
+                    end,
+
+                })
+            else
+                task.spawn(pcall, Info.Callback, Paragarph)
+            end
         end)
-        
+
         function Paragarph:Fire()
             Info.Callback()
         end
-        
+
         function Paragarph:SetType(Type)
             Info.Type = Type
             SelectType = Nodes.ButtonColorsMap[ Info.Type ]
-            
+
             Button.BackgroundColor3 = SelectType.Background
             Button.Title.TextColor3 = SelectType.Title
         end
@@ -1040,19 +1072,19 @@ Nodes.BuildElements = function(App, Args)
 
         return Paragarph
     end
-    
+
     function Elements:Toggle(Settings)
         local Paragarph = self:Paragraph(Settings)
-        
+
         local Info = {
             Title = Settings.Title,
             Desc = Settings.Description,
             Value = Settings.Value or false,
             Callback = Settings.Callback or function() end
         }
-        
+
         local Right = Paragarph.Right
-        
+
         local Toggle = Nodes.New("Frame", {
             BackgroundColor3 = Info.Value and Color3.fromRGB(42, 120, 214) or Color3.fromRGB(65, 65, 65),
             Name = "Toggle",
@@ -1063,14 +1095,14 @@ Nodes.BuildElements = function(App, Args)
                 CornerRadius = UDim.new(1, 0),
                 Parent = Toggle,
             })
-            
+
             Nodes.New("UIShadow", {
                 Parent = Toggle,
                 Transparency = 0.65,
                 BlurRadius = UDim.new(0, 4)
             })
         end
-        
+
         local Circle = Nodes.New("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
             Name = "Circle",
@@ -1084,7 +1116,7 @@ Nodes.BuildElements = function(App, Args)
                 Parent = Circle,
             })
         end
-        
+
         local function OnChanged(Value)
             Nodes.Tween(Toggle, {
                 Time = 0.15,
@@ -1094,7 +1126,7 @@ Nodes.BuildElements = function(App, Args)
                     BackgroundColor3 = Value and Color3.fromRGB(42, 120, 214) or Color3.fromRGB(65, 65, 65)
                 }
             }):Play()
-            
+
             Nodes.Tween(Circle, {
                 Time = 0.15,
                 Style = 'Exponential',
@@ -1103,31 +1135,31 @@ Nodes.BuildElements = function(App, Args)
                     Position = UDim2.new(0.5, Value and 9 or -8, 0.5, 0)
                 }
             }):Play()
-            
+
             task.spawn(pcall, Info.Callback, Paragarph, Value)
         end
-        
+
         function Paragarph:SetValue(Value)
             Info.Value = Value
             OnChanged(Info.Value)
         end
-        
+
         Nodes.Button(Toggle).MouseButton1Click:Connect(function()
             if App:IsDropdownOpen() then return end
-            
+
             Info.Value = not Info.Value
             OnChanged(Info.Value)
         end)
-        
+
         Paragarph:Padding("Left", {
             PaddingRight = Toggle.AbsoluteSize.X + 25
         })
-        
+
         OnChanged(Info.Value)
-        
+
         return Paragarph
     end
-    
+
     function Elements:Slider(Settings)
         local Paragarph = self:Paragraph(Settings)
 
@@ -1163,7 +1195,7 @@ Nodes.BuildElements = function(App, Args)
                 Parent = Background,
                 CornerRadius = UDim.new(1, 0),
             })
-            
+
             Nodes.New("UIShadow", {
                 Parent = Background,
                 Transparency = 0.65,
@@ -1268,7 +1300,7 @@ Nodes.BuildElements = function(App, Args)
 
         Slide.InputBegan:Connect(function(Input)
             if App:IsDropdownOpen() then return end
-            
+
             if Input.UserInputType == Enum.UserInputType.MouseButton1
                 or Input.UserInputType == Enum.UserInputType.Touch then
 
@@ -1352,11 +1384,11 @@ Nodes.BuildElements = function(App, Args)
                 BorderStrokePosition = "Outer",
                 Parent = Textfield,
             })
-            
+
             Paragarph:Padding("Left", {
                 PaddingRight = Textfield.AbsoluteSize.X + 25
             })
-            
+
             Nodes.New("UIShadow", {
                 Parent = Textfield,
                 Transparency = 0.65,
@@ -1397,9 +1429,10 @@ Nodes.BuildElements = function(App, Args)
 
         return Paragarph
     end
-    
+
     function Elements:Dropdown(Settings)
         local IsShowing = false
+        local IsMulti = typeof(Settings.Value) == "table"
 
         local Paragraph = self:Paragraph({
             Title = Settings.Title,
@@ -1410,13 +1443,11 @@ Nodes.BuildElements = function(App, Args)
         local Right = Paragraph.Right
         local Icon = Paragraph:Icon(132291592681506)
 
-        local IsMulti = type(Settings.Value) == "table"
-
         local Info = {
             Title = Settings.Title,
             List = Settings.List or {},
             Value = Settings.Value or (IsMulti and {} or "None"),
-            Callback = Settings.Callback or function() end,
+            Callback = Settings.Callback or function() end
         }
 
         local Button = Nodes.Button(Paragraph.self)
@@ -1428,7 +1459,7 @@ Nodes.BuildElements = function(App, Args)
             Parent = Framework.Window,
             Position = UDim2.new(0.5, 0, 0.3, 0),
             Visible = false,
-            Size = UDim2.new(0, 400,0, 250),
+            Size = UDim2.new(0, 400, 0, 250),
         }) do
             Nodes.New("UICorner", {
                 BottomLeftRadius = UDim.new(0, 16),
@@ -1572,6 +1603,15 @@ Nodes.BuildElements = function(App, Args)
             HorizontalAlignment = HorizontalAlignment.Center,
             Parent = DropdownScroll,
             SortOrder = SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 3),
+        })
+
+        Nodes.New("UIPadding", {
+            PaddingBottom = UDim.new(0, 4),
+            PaddingLeft = UDim.new(0, 5),
+            PaddingRight = UDim.new(0, 5),
+            PaddingTop = UDim.new(0, 4),
+            Parent = DropdownScroll,
         })
 
         UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -1583,17 +1623,24 @@ Nodes.BuildElements = function(App, Args)
             )
         end)
 
-        Paragraph.SelectedValues = {}
-        Paragraph.SelectedOrder = 0
-        Paragraph.Lists = {}
+        local SelectedValues = {}
+        local SelectedOrder = 0
 
-        function Paragraph:CloseDropdown()
-            IsShowing = false
-            NewDropdown.Visible = false
-            NewDropdown.Position = UDim2.new(0.5, 0, 0.3, 0)
+        local function IsValueInTable(Value, Table)
+            if type(Table) ~= "table" then
+                return false
+            end
+
+            for _, v in ipairs(Table) do
+                if v == Value then
+                    return true
+                end
+            end
+
+            return false
         end
 
-        function Paragraph:GetDesc()
+        local function GetText()
             if IsMulti then
                 if type(Info.Value) ~= "table" or #Info.Value == 0 then
                     return "None"
@@ -1609,136 +1656,127 @@ Nodes.BuildElements = function(App, Args)
             return tostring(Info.Value)
         end
 
-        function Paragraph:IsValueInTable(Value, Table)
-            if type(Table) ~= "table" then
-                return false
-            end
-
-            for _, Allowed in Table do
-                if Allowed == Value then
-                    return true
-                end
-            end
-
-            return false
+        local function SetText()
+            Paragraph.Description = GetText()
         end
 
-        function Paragraph:MoveToTop(Target)
-            for _, List in DropdownScroll:GetChildren() do
-                if List.Name == "NewList" and List ~= Target then
-                    List.LayoutOrder += 1
-                end
+        local function UpdateValue()
+            if not IsMulti then
+                return
             end
 
-            Target.LayoutOrder = 1
-        end
+            local SelectedList = {}
 
-        function Paragraph:RefreshSelected()
-            local Selected = {}
-
-            for Name, Order in pairs(Paragraph.SelectedValues) do
-                table.insert(Selected, {
+            for Name, Order in pairs(SelectedValues) do
+                table.insert(SelectedList, {
                     Name = Name,
-                    Order = Order,
+                    Order = Order
                 })
             end
 
-            table.sort(Selected, function(A, B)
-                return A.Order < B.Order
+            table.sort(SelectedList, function(a, b)
+                return a.Order < b.Order
             end)
 
-            local Result = {}
+            local Values = {}
 
-            for Index, Data in Selected do
-                Result[Index] = Data.Name
-
-                local List = Paragraph.Lists[Data.Name]
-
-                if List then
-                    List.LayoutOrder = Index
-                end
-
-                Paragraph.SelectedValues[Data.Name] = Index
+            for _, Data in ipairs(SelectedList) do
+                table.insert(Values, Data.Name)
             end
 
-            Paragraph.SelectedOrder = #Result
+            Info.Value = Values
 
-            return Result
+            SetText()
+
+            return Values
         end
 
-        function Paragraph:SetValue(NewValue)
-            if IsMulti then
-                if type(NewValue) ~= "table" then
-                    NewValue = {}
-                end
+        local function UpdateOrder()
+            if not IsMulti then
+                return
+            end
 
-                Info.Value = table.clone(NewValue)
+            for _, List in ipairs(DropdownScroll:GetChildren()) do
+                if List:IsA("Frame") and List.Name == "NewList" then
+                    local Left = List:FindFirstChild("Left")
+                    local Title = Left and Left:FindFirstChild("Title")
 
-                table.clear(Paragraph.SelectedValues)
+                    if Title then
+                        local Order = SelectedValues[Title.Text]
 
-                for Index, Name in Info.Value do
-                    Paragraph.SelectedValues[Name] = Index
-                end
-
-                Paragraph.SelectedOrder = #Info.Value
-
-                for Name, List in Paragraph.Lists do
-                    local Order = Paragraph.SelectedValues[Name]
-
-                    if Order then
-                        List.LayoutOrder = Order
-                    else
-                        List.LayoutOrder = #Info.List + (table.find(Info.List, Name) or 0)
+                        if Order then
+                            List.LayoutOrder = Order
+                        else
+                            List.LayoutOrder = table.find(Info.List, Title.Text) or 0
+                        end
                     end
                 end
-            else
-                Info.Value = NewValue or "None"
-
-                table.clear(Paragraph.SelectedValues)
-                Paragraph.SelectedOrder = 0
             end
-
-            Paragraph.Description = Paragraph:GetDesc()
         end
-        
-        function Paragraph:ClearAll()
-            for _, Child in DropdownScroll:GetChildren() do
-                if Child.Name == "NewList" then
-                    Child:Destroy()
+
+        local function CloseDropdown()
+            IsShowing = false
+            NewDropdown.Visible = false
+            NewDropdown.Position = UDim2.new(0.5, 0, 0.3, 0)
+            SearchInput.Text = ""
+        end
+
+        Paragraph.CloseDropdown = CloseDropdown
+        Paragraph.Lists = Paragraph.Lists or {}
+
+        SetText()
+
+        function Paragraph:Clear(Value)
+            for _, List in ipairs(DropdownScroll:GetChildren()) do
+                if List:IsA("Frame") and List.Name == "NewList" then
+                    local Left = List:FindFirstChild("Left")
+                    local Title = Left and Left:FindFirstChild("Title")
+
+                    local ShouldClear =
+                        Value == nil
+                        or (type(Value) == "string" and Title and Title.Text == Value)
+                        or (type(Value) == "table" and Title and IsValueInTable(Title.Text, Value))
+
+                    if ShouldClear then
+                        if Title then
+                            SelectedValues[Title.Text] = nil
+                        end
+
+                        List:Destroy()
+                    end
                 end
             end
 
-            table.clear(Paragraph.SelectedValues)
-            table.clear(Paragraph.Lists)
-            
-            Paragraph.SelectedOrder = 0
-
-            if IsMulti then
-                Info.Value = {}
+            if Value == nil then
+                SelectedValues = {}
+                SelectedOrder = 0
+                Info.Value = IsMulti and {} or "None"
+                Paragraph.Description = "None"
             else
-                Info.Value = "None"
+                UpdateValue()
             end
 
-            Paragraph.Description = Paragraph:GetDesc()
+            UpdateOrder()
         end
 
         function Paragraph:AddList(Name)
+            if type(Name) ~= "string" then
+                return
+            end
+
             local NewList = Nodes.New("Frame", {
+                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
                 BackgroundTransparency = 1,
                 Name = "NewList",
                 Parent = DropdownScroll,
                 Size = UDim2.new(1, 0, 0, 40),
                 LayoutOrder = table.find(Info.List, Name) or 0,
-            })
-
-            Nodes.New("Frame", {
-                AnchorPoint = Vector2.new(0.5, 1),
-                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-                Name = "Line",
-                Parent = NewList,
-                Position = UDim2.new(0.5, 0, 1, 0),
-                Size = UDim2.new(1, 0, 0, 1),
-            })
+            }) do
+                Nodes.New("UICorner", {
+                    CornerRadius = UDim.new(0, 3),
+                    Parent = NewList,
+                })
+            end
 
             local Actived = Nodes.New("Frame", {
                 BackgroundColor3 = Color3.fromRGB(234, 234, 234),
@@ -1752,52 +1790,53 @@ Nodes.BuildElements = function(App, Args)
                 Name = "Left",
                 Parent = NewList,
                 Size = UDim2.new(1, 0, 1, 0),
-            })
+            }) do
+                Nodes.New("UIListLayout", {
+                    Padding = UDim.new(0, 2),
+                    Parent = Left,
+                    SortOrder = SortOrder.LayoutOrder,
+                    VerticalAlignment = VerticalAlignment.Center,
+                })
 
-            Nodes.New("UIListLayout", {
-                Padding = UDim.new(0, 2),
-                Parent = Left,
-                SortOrder = SortOrder.LayoutOrder,
-                VerticalAlignment = VerticalAlignment.Center,
-            })
+                Nodes.New("TextLabel", {
+                    AutomaticSize = AutomaticSize.XY,
+                    BackgroundTransparency = 1,
+                    FontFace = Nodes.FontMedium,
+                    Name = "Title",
+                    Parent = Left,
+                    Size = UDim2.new(0, 0, 0, 0),
+                    Text = tostring(Name),
+                    TextColor3 = Color3.fromRGB(200, 200, 200),
+                    TextSize = 13,
+                    TextTransparency = 0.5,
+                    TextXAlignment = TextXAlignment.Left,
+                })
 
-            Nodes.New("TextLabel", {
-                AutomaticSize = AutomaticSize.XY,
-                BackgroundTransparency = 1,
-                FontFace = Nodes.FontMedium,
-                Name = "Title",
-                Parent = Left,
-                Size = UDim2.new(0, 0, 0, 0),
-                Text = tostring(Name),
-                TextColor3 = Color3.fromRGB(255, 255, 255),
-                TextSize = 15,
-                TextXAlignment = TextXAlignment.Left,
-            })
-
-            Nodes.New("UIPadding", {
-                PaddingBottom = UDim.new(0, 3),
-                PaddingLeft = UDim.new(0, 20),
-                Parent = Left,
-            })
+                Nodes.New("UIPadding", {
+                    PaddingBottom = UDim.new(0, 3),
+                    PaddingLeft = UDim.new(0, 20),
+                    Parent = Left,
+                })
+            end
 
             local ListRight = Nodes.New("Frame", {
                 BackgroundTransparency = 1,
                 Name = "Right",
                 Parent = NewList,
                 Size = UDim2.new(1, 0, 1, 0),
-            })
+            }) do
+                Nodes.New("UIListLayout", {
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Parent = ListRight,
+                    SortOrder = SortOrder.LayoutOrder,
+                    VerticalAlignment = VerticalAlignment.Center,
+                })
 
-            Nodes.New("UIListLayout", {
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Parent = ListRight,
-                SortOrder = SortOrder.LayoutOrder,
-                VerticalAlignment = VerticalAlignment.Center,
-            })
-
-            Nodes.New("UIPadding", {
-                PaddingRight = UDim.new(0, 20),
-                Parent = ListRight,
-            })
+                Nodes.New("UIPadding", {
+                    PaddingRight = UDim.new(0, 20),
+                    Parent = ListRight,
+                })
+            end
 
             local Lucide = Nodes.New("ImageLabel", {
                 BackgroundTransparency = 1,
@@ -1812,132 +1851,135 @@ Nodes.BuildElements = function(App, Args)
 
             local function OnValue(IsSelected)
                 Nodes.Tween(NewList, {
-                    Time = 0.15,
-                    Style = "Quad",
+                    Time = 0.2,
+                    Style = "Linear",
                     Direction = "Out",
                     Goal = {
-                        BackgroundTransparency = IsSelected and 0.975 or 1,
-                    },
+                        BackgroundTransparency = IsSelected and 0.85 or 1
+                    }
                 }):Play()
 
+                local Title = Left:FindFirstChild("Title")
+
+                if Title then
+                    Nodes.Tween(Title, {
+                        Time = 0.2,
+                        Style = "Linear",
+                        Direction = "Out",
+                        Goal = {
+                            TextTransparency = IsSelected and 0 or 0.5
+                        }
+                    }):Play()
+                end
+
                 Nodes.Tween(Actived, {
-                    Time = 0.15,
+                    Time = 0.2,
                     Style = "Quad",
                     Direction = IsSelected and "Out" or "In",
                     Goal = {
                         Size = IsSelected
                             and UDim2.new(0, 5, 1, 0)
-                            or UDim2.new(0, 5, 0, 0),
-                    },
+                            or UDim2.new(0, 5, 0, 0)
+                    }
                 }):Play()
 
                 Nodes.Tween(Lucide, {
-                    Time = 0.15,
+                    Time = 0.2,
                     Style = "Quad",
                     Direction = "Out",
                     Goal = {
-                        ImageTransparency = IsSelected and 0 or 1,
-                    },
+                        ImageTransparency = IsSelected and 0 or 1
+                    }
                 }):Play()
             end
 
             local function OnSelected()
                 if IsMulti then
-                    if Paragraph.SelectedValues[Name] ~= nil then
-                        Paragraph.SelectedValues[Name] = nil
+                    if SelectedValues[Name] then
+                        SelectedValues[Name] = nil
                         OnValue(false)
-
-                        local OriginalOrder = table.find(Info.List, Name) or 0
-                        NewList.LayoutOrder = #Info.List + OriginalOrder
                     else
-                        Paragraph.SelectedOrder += 1
-                        Paragraph.SelectedValues[Name] = Paragraph.SelectedOrder
-
-                        Paragraph:MoveToTop(NewList)
+                        SelectedOrder += 1
+                        SelectedValues[Name] = SelectedOrder
                         OnValue(true)
                     end
 
-                    local Selected = Paragraph:RefreshSelected()
+                    local Values = UpdateValue()
 
-                    Info.Value = Selected
-                    Paragraph.Description = Paragraph:GetDesc()
+                    UpdateOrder()
 
-                    return pcall(
-                        Info.Callback,
-                        Paragraph,
-                        Info.Value
-                    )
-                end
+                    pcall(Info.Callback, Paragraph, Values)
+                else
+                    for _, List in ipairs(DropdownScroll:GetChildren()) do
+                        if List:IsA("Frame") and List.Name == "NewList" then
+                            local Active = List:FindFirstChild("Actived")
+                            local LeftFrame = List:FindFirstChild("Left")
+                            local Title = LeftFrame and LeftFrame:FindFirstChild("Title")
+                            local RightFrame = List:FindFirstChild("Right")
+                            local ListLucide = RightFrame and RightFrame:FindFirstChild("Lucide")
 
-                for _, Child in DropdownScroll:GetChildren() do
-                    if Child.Name == "NewList" then
-                        local ChildActived = Child:FindFirstChild("Actived")
-                        local ChildRight = Child:FindFirstChild("Right")
-                        local ChildLucide = ChildRight
-                            and ChildRight:FindFirstChild("Lucide")
+                            if Title and Title.Text ~= Name then
+                                Nodes.Tween(List, {
+                                    Time = 0.2,
+                                    Style = "Linear",
+                                    Direction = "Out",
+                                    Goal = {
+                                        BackgroundTransparency = 1
+                                    }
+                                }):Play()
 
-                        Nodes.Tween(Child, {
-                            Time = 0.1,
-                            Style = "Quad",
-                            Direction = "Out",
-                            Goal = {
-                                BackgroundTransparency = 1,
-                            },
-                        }):Play()
+                                Nodes.Tween(Title, {
+                                    Time = 0.2,
+                                    Style = "Linear",
+                                    Direction = "Out",
+                                    Goal = {
+                                        TextTransparency = 0.5
+                                    }
+                                }):Play()
 
-                        if ChildActived then
-                            Nodes.Tween(ChildActived, {
-                                Time = 0.1,
-                                Style = "Quad",
-                                Direction = "Out",
-                                Goal = {
-                                    Size = UDim2.new(0, 5, 0, 0),
-                                },
-                            }):Play()
-                        end
+                                if Active then
+                                    Nodes.Tween(Active, {
+                                        Time = 0.2,
+                                        Style = "Quad",
+                                        Direction = "In",
+                                        Goal = {
+                                            Size = UDim2.new(0, 5, 0, 0)
+                                        }
+                                    }):Play()
+                                end
 
-                        if ChildLucide then
-                            Nodes.Tween(ChildLucide, {
-                                Time = 0.15,
-                                Style = "Quad",
-                                Direction = "Out",
-                                Goal = {
-                                    ImageTransparency = 1,
-                                },
-                            }):Play()
+                                if ListLucide then
+                                    Nodes.Tween(ListLucide, {
+                                        Time = 0.2,
+                                        Style = "Quad",
+                                        Direction = "Out",
+                                        Goal = {
+                                            ImageTransparency = 1
+                                        }
+                                    }):Play()
+                                end
+                            end
                         end
                     end
+
+                    Info.Value = Name
+
+                    OnValue(true)
+                    SetText()
+
+                    pcall(Info.Callback, Paragraph, Info.Value)
                 end
-
-                OnValue(true)
-
-                Info.Value = Name
-                Paragraph.Description = Paragraph:GetDesc()
-
-                pcall(
-                    Info.Callback,
-                    Paragraph,
-                    Info.Value
-                )
-
-                Paragraph:CloseDropdown()
             end
 
-            task.defer(function()
-                if IsMulti then
-                    if Paragraph:IsValueInTable(Name, Info.Value) then
-                        local Order = Paragraph.SelectedValues[Name]
-
-                        if Order then
-                            NewList.LayoutOrder = Order
-                        end
-
-                        OnValue(true)
-                    end
-                elseif Name == Info.Value then
+            if IsMulti then
+                if IsValueInTable(Name, Info.Value) then
+                    SelectedOrder += 1
+                    SelectedValues[Name] = SelectedOrder
                     OnValue(true)
                 end
-            end)
+            elseif Name == Info.Value then
+                OnValue(true)
+            end
 
             Nodes.Button(NewList).MouseButton1Click:Connect(OnSelected)
 
@@ -1947,8 +1989,8 @@ Nodes.BuildElements = function(App, Args)
         SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
             local SearchText = string.lower(SearchInput.Text)
 
-            for _, List in DropdownScroll:GetChildren() do
-                if List.Name == "NewList" then
+            for _, List in ipairs(DropdownScroll:GetChildren()) do
+                if List:IsA("Frame") and List.Name == "NewList" then
                     local Left = List:FindFirstChild("Left")
                     local Title = Left and Left:FindFirstChild("Title")
 
@@ -1977,7 +2019,6 @@ Nodes.BuildElements = function(App, Args)
             end
 
             local Mouse = Player:GetMouse()
-
             local Position = NewDropdown.AbsolutePosition
             local Size = NewDropdown.AbsoluteSize
 
@@ -2010,24 +2051,16 @@ Nodes.BuildElements = function(App, Args)
                 Style = "Back",
                 Direction = "Out",
                 Goal = {
-                    Position = UDim2.new(0.5, 0, 0.5, 0),
-                },
+                    Position = UDim2.new(0.5, 0, 0.5, 0)
+                }
             }):Play()
         end)
 
-        Paragraph:SetValue(Info.Value)
-
-        for _, Name in Info.List do
+        for _, Name in ipairs(Info.List) do
             Paragraph:AddList(Name)
         end
 
-        task.defer(function()
-            pcall(
-                Info.Callback,
-                Paragraph,
-                Info.Value
-            )
-        end)
+        UpdateOrder()
 
         return Paragraph
     end
@@ -2042,7 +2075,7 @@ Nodes.Application = function(Folder, Args)
         Application.Shadows = {}
         Application.Searching = {}
         Application.Callbacks = {}
-        
+
         Application.SelectTab = nil
         Application.FirstTab = true
         Application.IsFirstRunning = true
@@ -2050,39 +2083,40 @@ Nodes.Application = function(Folder, Args)
         Application.DropdownOpened = false
         Application.WindowToolsOpened = false
         Application.Signal = Nodes.GoodSignal.new()
-        
+
         Cached.IsResizing = false
         Cached.IsFullScreen = false
     end
-    
+
     local Logo = Args.Logo or "0"
     local Keybind = Args.Keybind or "LeftControl"
-    
+
     local Title = Args.Title or "Window"
     local Footer = Args.Footer or "Roblox company."
-    
+
     local Minimum = Args.Minimum or UDim2.new(0, 500, 0, 360)
     local Maximum = Args.Maximum or UDim2.new(0, 960,0, 700)
-    
+
+    local WindowSize = UDim2.new(0, 575, 0, 515)
     local Current = Nodes.IsMobile and Minimum
-    local Size = Args.Size or Current or Maximum
-    
+    local Size = Args.Size or Current or WindowSize
+
     function Application:NewElement(Name, Module)
         return typeof(Module) == 'function' and Module(Name)
     end
-    
+
     function Application:IsDropdownOpen()
         local Dropdowns = {
             "NewDropdown", "NewDialog", "WindowTools"
         }
-        
+
         for _, v in Framework.Window:GetChildren() do
             if table.find(Dropdowns, v.Name) and v.Visible then
                 return true
             end
         end
     end
-    
+
     function Application:CreateTool(Parent, Settings)
         local Tool = Nodes.New("Frame", {
             AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2189,7 +2223,7 @@ Nodes.Application = function(Folder, Args)
 
         return Tool
     end
-    
+
     function Application:Dialog(Info)
         local Shows = {}
         local Hides = {}
@@ -2363,12 +2397,12 @@ Nodes.Application = function(Folder, Args)
                         ScrollBarImageTransparency = 0.75,
                         ScrollBarThickness = 3
                     }
-                    
+
                     Hides[Scroll] = { 
                         ScrollBarImageTransparency = 1,
                         ScrollBarThickness = 0
                     }
-                    
+
                     Nodes.New("UIListLayout", {
                         Parent = Scroll,
                         SortOrder = SortOrder.LayoutOrder,
@@ -2511,8 +2545,8 @@ Nodes.Application = function(Folder, Args)
                     Hides[Confirm.Title] = { TextTransparency = 1 }
 
                     Nodes.Button(Confirm).MouseButton1Click:Connect(function()
-                        
-                        
+
+
                         if DialogModule.Callback then
                             DialogModule.Callback(true)
                         end
@@ -2533,7 +2567,7 @@ Nodes.Application = function(Folder, Args)
                 end
             end
         end
-        
+
         Nodes.New("UIShadow", {
             Parent = NewDialog,
             Transparency = 1,
@@ -2554,7 +2588,7 @@ Nodes.Application = function(Folder, Args)
 
         return DialogModule
     end
-    
+
     Application:NewElement("@Window", function()
         local ScreenGui = Nodes.New("ScreenGui", {
             ZIndexBehavior = ZIndexBehavior.Global,
@@ -2565,12 +2599,12 @@ Nodes.Application = function(Folder, Args)
         })
 
         local ViewportSize = CurrentCamera.ViewportSize
-        
+
         local NewSize = UDim2.new(
             0, math.max(ViewportSize.X * 0.7, 500),
             0, math.max(ViewportSize.Y * 0.8, 360)
         )
-        
+
         local Window = Nodes.New("Frame", {
             BackgroundColor3 = Color3.fromRGB(24, 24, 24),
             AnchorPoint = Vector2.new(0.5, 0.5),
@@ -2590,7 +2624,7 @@ Nodes.Application = function(Folder, Args)
                 Parent = Window
             }) 
         end
-        
+
         local Workspacetable = Nodes.New("Frame", {
             BackgroundTransparency = 1,
             Parent = Window,
@@ -2602,22 +2636,22 @@ Nodes.Application = function(Folder, Args)
                 Parent = Workspacetable
             }) 
         end
-        
+
         Nodes.Draggable(Window, function()
             return Cached.IsResizing or Cached.IsFullScreen
         end)
-        
+
         if not Nodes.IsMobile then
             Nodes.Resizing(Window, Minimum, Maximum)
         end
-        
+
         Application.Signal:Connect(function(Type)
             if Type == 'FullScreen' then
                 Cached.IsFullScreen = not Cached.IsFullScreen
-                
+
                 local IsFullScreen = Cached.IsFullScreen
                 local Radius = IsFullScreen and 0 or 16
-                
+
                 if IsFullScreen then
                     Cached.WindowSize = Window.Size
                     Cached.WindowPosition = Window.Position
@@ -2626,7 +2660,7 @@ Nodes.Application = function(Folder, Args)
                 Framework.ScreenGui.IgnoreGuiInset = not IsFullScreen
                 Window.UICorner.CornerRadius = UDim.new(0, Radius)
                 Framework.HeadCorner.TopRightRadius = UDim.new(0, Radius)
-                
+
                 if Application.IsCollapseTab then
                     Framework.HeadCorner.TopLeftRadius = UDim.new(0, Radius)
                 end
@@ -2642,12 +2676,12 @@ Nodes.Application = function(Folder, Args)
                 }):Play()
             end
         end)
-        
+
         Framework.Window = Window
         Framework.ScreenGui = ScreenGui
         Framework.Workspace = Window
     end)
-    
+
     Application:NewElement("@Notification", function()
         local Notification = Nodes.New("Frame", {
             BackgroundTransparency = 1,
@@ -2707,13 +2741,13 @@ Nodes.Application = function(Folder, Args)
                 Nodes.New("UICorner", {
                     Parent = Scale,
                 })
-                
+
                 Nodes.New("UIShadow", {
                     Parent = Scale,
                     BlurRadius = UDim.new(0, 20),
                     Transparency = 0.5
                 })
-                
+
                 Shows[Scale] = { Position = UDim2.new(0, 0, 0, 0) }
                 Hides[Scale] = { Position = UDim2.new(1.1, 0, 0, 0) }
             end
@@ -2809,14 +2843,14 @@ Nodes.Application = function(Folder, Args)
                     Size = UDim2.new(0, 20, 0, 20),
                 }) 
             end
-            
+
             local Elastic = Nodes.Tween(Scale, {
                 Time = 0.45,
                 Style = "Quint",
                 Direction = "Out",
                 Goal = Shows[Scale]
             })
-            
+
             Elastic.Completed:Once(function()
                 local Counter = Nodes.Tween(Countdown, {
                     Time = NotificationModule.Time,
@@ -2826,7 +2860,7 @@ Nodes.Application = function(Folder, Args)
                         Size = UDim2.new(0, 0, 1, 0)
                     }
                 })
-                
+
                 Countdown.UICorner:Destroy()
 
                 Counter.Completed:Once(function()
@@ -2840,11 +2874,11 @@ Nodes.Application = function(Folder, Args)
 
                 Counter:Play()
             end)
-            
+
             Elastic:Play()
         end
     end)
-    
+
     Application:NewElement("@Maintab", function()
         local Maintab = Nodes.New("Frame", {
             BackgroundTransparency = 1,
@@ -2858,7 +2892,7 @@ Nodes.Application = function(Folder, Args)
                 HorizontalAlignment = HorizontalAlignment.Center,
             }) 
         end
-        
+
         Application:NewElement("./Header", function()
             local Header = Nodes.New("Frame", {
                 BackgroundTransparency = 1,
@@ -2893,7 +2927,7 @@ Nodes.Application = function(Folder, Args)
                 Parent = Left,
                 Size = UDim2.new(0, 0, 0, 0),
                 FontFace = Nodes.FontMedium,
-                Text = "Window",
+                Text = Args.Title,
                 TextColor3 = Color3.fromRGB(255, 255, 255),
                 TextSize = 15,
                 TextXAlignment = TextXAlignment.Left,
@@ -2932,7 +2966,7 @@ Nodes.Application = function(Folder, Args)
                 })
             end
         end)
-        
+
         Application:NewElement("./Search", function()
             local Search = Nodes.New("Frame", {
                 BackgroundColor3 = Color3.fromRGB(20, 20, 20),
@@ -2963,7 +2997,7 @@ Nodes.Application = function(Folder, Args)
                     Parent = Search,
                 })
             end
-            
+
             local Icon = Nodes.New("ImageLabel", {
                 BackgroundTransparency = 1,
                 LayoutOrder = 1,
@@ -2974,7 +3008,7 @@ Nodes.Application = function(Folder, Args)
                 ImageContent = Content.fromUri("rbxassetid://78256773704343"),
                 ImageTransparency = 0.5,
             })
-            
+
             local Searchable = Nodes.New("TextBox", {
                 BackgroundTransparency = 1,
                 Parent = Search,
@@ -2988,7 +3022,7 @@ Nodes.Application = function(Folder, Args)
                 TextTruncate = TextTruncate.AtEnd,
                 TextXAlignment = TextXAlignment.Left,
             })
-            
+
             local Space = Nodes.New("Frame", {
                 BackgroundTransparency = 1,
                 Name = "Space",
@@ -3004,14 +3038,14 @@ Nodes.Application = function(Folder, Args)
                     Size = UDim2.new(1, 0, 0, 1),
                 })
             end
-            
+
             Searchable:GetPropertyChangedSignal('Text'):Connect(function()
                 Application.Signal:Fire('Searchable', {
                     Word = Searchable.Text
                 })
             end)
         end)
-        
+
         Application:NewElement("./Tabscrolling", function()
             local Tabscrolling = Nodes.New("ScrollingFrame", {
                 BackgroundTransparency = 1,
@@ -3029,10 +3063,10 @@ Nodes.Application = function(Folder, Args)
                     Parent = Tabscrolling,
                 })
             end
-            
+
             Framework.Tabscrolling = Tabscrolling
         end)
-        
+
         Application:NewElement("./TabResult", function()
             local ResultTab = Nodes.New("Frame", {
                 Name = "ResultTab",
@@ -3050,7 +3084,7 @@ Nodes.Application = function(Folder, Args)
                     Size = UDim2.new(1, 0, 0, 1),
                 })
             end
-            
+
             local Left = Nodes.New("Frame", {
                 Name = "Left",
                 Parent = ResultTab,
@@ -3069,7 +3103,7 @@ Nodes.Application = function(Folder, Args)
                     PaddingBottom = UDim.new(0, 3),
                     PaddingLeft = UDim.new(0, 20),
                 })
-                
+
                 Nodes.New("TextLabel", {
                     Name = "Title",
                     Parent = Left,
@@ -3136,18 +3170,18 @@ Nodes.Application = function(Folder, Args)
                     ImageTransparency = 0.5,
                 })
             end
-            
+
             Application.Signal:Connect(function(Type, Value)
                 if Type == 'SetResultTab' then
                     ResultTab.Visible = Value
                 end
             end)
         end)
-        
+
         Application:NewElement("./Profile", function()
             local ThumbnailType = Enum.ThumbnailType
             local ThumbnailSize = Enum.ThumbnailSize
-            
+
             local Profile = Nodes.New("Frame", {
                 Name = "Profile",
                 Parent = Maintab,
@@ -3200,7 +3234,7 @@ Nodes.Application = function(Folder, Args)
                     Parent = Avatar,
                     CornerRadius = UDim.new(1, 0),
                 })
-                
+
                 Nodes.New("UIShadow", {
                     Parent = Avatar,
                     BlurRadius = UDim.new(0, 3),
@@ -3279,6 +3313,7 @@ Nodes.Application = function(Folder, Args)
                 BackgroundTransparency = 1,
             })
 
+            local Hidden = false
             local Icon = Nodes.New("ImageLabel", {
                 Name = "Icon",
                 Parent = Outter,
@@ -3290,7 +3325,12 @@ Nodes.Application = function(Folder, Args)
                 ImageColor3 = Color3.fromRGB(255, 170, 0),
                 ImageTransparency = 0.5,
             })
-            
+
+            Nodes.Button(Avatar).MouseButton1Click:Connect(function()
+                Hidden = not Hidden
+                Avatar.Image = Hidden and Application.RobloxProfile or Application.PlayerProfile
+            end)
+
             task.defer(function()
                 local Success, Image = pcall(
                     Players.GetUserThumbnailAsync,
@@ -3299,9 +3339,21 @@ Nodes.Application = function(Folder, Args)
                     ThumbnailSize.Size420x420
                 )
 
+                local Success2, Image2 = pcall(
+                    Players.GetUserThumbnailAsync,
+                    Players, 1,
+                    ThumbnailType.HeadShot,
+                    ThumbnailSize.Size420x420
+                )
+
+                if Success2 then
+                    Application.RobloxProfile = Image2
+                end
+
                 if Success then
+                    Application.PlayerProfile = Image
                     Avatar.Image = Image
-                    
+
                     Username.Text = Player.Name:gsub("[aeiouAEIOU]", function()
                         return string.char(37, 42, 35):sub(math.random(1, 3), math.random(1, 3))
                     end)
@@ -3316,7 +3368,7 @@ Nodes.Application = function(Folder, Args)
             end)
         end)
     end)
-    
+
     Application:NewElement("@Mainpage", function()
         local Mainpage = Nodes.New("Frame", {
             BackgroundTransparency = 1,
@@ -3364,7 +3416,7 @@ Nodes.Application = function(Folder, Args)
                 PaddingTop = UDim.new(0, 50),
             })
         end
-        
+
         local PageLayout = Nodes.New("UIPageLayout", {
             EasingStyle = EasingStyle.Exponential,
             TweenTime = 0.25,
@@ -3375,224 +3427,7 @@ Nodes.Application = function(Folder, Args)
             ScrollWheelInputEnabled = false,
             TouchInputEnabled = false,
         })
-        
-        Application:NewElement("./SkeletonLoad", function()
-            local PageSkeletonLoad = Nodes.New("Frame", {
-                BackgroundTransparency = 1,
-                Name = "PageSkeletonLoad",
-                Parent = Pages,
-                Size = UDim2.new(1, 0, 1, 0),
-            })
 
-            Nodes.New("UIPadding", {
-                Parent = PageSkeletonLoad,
-                PaddingBottom = UDim.new(0, 15),
-                PaddingLeft = UDim.new(0, 15),
-                PaddingRight = UDim.new(0, 15),
-                PaddingTop = UDim.new(0, 65),
-            })
-
-            local Scale = Nodes.New("Frame", {
-                BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-                BackgroundTransparency = 0,
-                Name = "Scale",
-                Parent = PageSkeletonLoad,
-                Size = UDim2.new(1, 0, 1, 0),
-            })
-
-            Nodes.New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = Scale })
-
-            Nodes.New("UIListLayout", {
-                Padding = UDim.new(0, 7),
-                Parent = Scale,
-                SortOrder = SortOrder.LayoutOrder,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalFlex = UIFlexAlignment.Fill,
-            })
-
-            Nodes.New("UIPadding", {
-                Parent = Scale,
-                PaddingBottom = UDim.new(0, 10),
-                PaddingLeft = UDim.new(0, 10),
-                PaddingRight = UDim.new(0, 10),
-                PaddingTop = UDim.new(0, 10),
-            })
-            
-            local function LoopPulse(Frame, DelayOffset)
-                task.delay(DelayOffset, function()
-                    while task.wait() do 
-                        Nodes.Tween(Frame, {
-                            Time = 0.8,
-                            Style = 'Sine',
-                            Direction = 'InOut',
-                            Goal = { BackgroundTransparency = 0.5 }
-                        }):Play()
-                        task.wait(0.8)
-                        Nodes.Tween(Frame, {
-                            Time = 0.8,
-                            Style = 'Sine',
-                            Direction = 'InOut',
-                            Goal = { BackgroundTransparency = 0 }
-                        }):Play()
-                        task.wait(0.8)
-                    end
-                end)
-            end
-
-            local function MakeBigChild(Parent, Height, HasInnerList)
-                local Frame = Nodes.New("Frame", {
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundTransparency = 0,
-                    Name = "BigChild",
-                    Parent = Parent,
-                    Size = UDim2.new(1, 0, 0, Height),
-                })
-
-                Nodes.New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = Frame })
-
-                local Gradient = Nodes.New("UIGradient", {
-                    Parent = Frame,
-                    Rotation = 0,
-                    Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(55, 55, 55)),
-                        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(55, 55, 55)),
-                        ColorSequenceKeypoint.new(0.47, Color3.fromRGB(120, 120, 120)),
-                        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 220, 220)),
-                        ColorSequenceKeypoint.new(0.53, Color3.fromRGB(120, 120, 120)),
-                        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(55, 55, 55)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(55, 55, 55)),
-                    }),
-                    Offset = Vector2.new(-1, 0),
-                })
-
-                if HasInnerList then
-                    Nodes.New("UIListLayout", {
-                        Padding = UDim.new(0, 7),
-                        Parent = Frame,
-                        SortOrder = SortOrder.LayoutOrder,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                    })
-
-                    Nodes.New("UIPadding", {
-                        Parent = Frame,
-                        PaddingBottom = UDim.new(0, 10),
-                        PaddingLeft = UDim.new(0, 10),
-                        PaddingRight = UDim.new(0, 10),
-                        PaddingTop = UDim.new(0, 10),
-                    })
-
-                    for _ = 1, 2 do
-                        local C = Nodes.New("Frame", {
-                            AnchorPoint = Vector2.new(0.5, 0.5),
-                            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                            BackgroundTransparency = 0,
-                            Name = "Child",
-                            Parent = Frame,
-                            Position = UDim2.new(0.5, 0, 0.5, 0),
-                            Size = UDim2.new(1, 0, 0, 20),
-                        })
-                        Nodes.New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = C })
-                        Nodes.New("UIGradient", {
-                            Parent = C,
-                            Color = ColorSequence.new({
-                                ColorSequenceKeypoint.new(0, Color3.fromRGB(75, 75, 75)),
-                                ColorSequenceKeypoint.new(1, Color3.fromRGB(75, 75, 75)),
-                            }),
-                        })
-                        
-                        LoopPulse(C, 0)
-                    end
-                else
-                    local Pill = Nodes.New("Frame", {
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                        BackgroundTransparency = 0,
-                        Name = "Child",
-                        Parent = Frame,
-                        Position = UDim2.new(0.5, 0, 0.5, 0),
-                        Size = UDim2.new(1, -40, 0, 20),
-                    })
-                    
-                    Nodes.New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Pill })
-                    Nodes.New("UIGradient", {
-                        Parent = Pill,
-                        Color = ColorSequence.new({
-                            ColorSequenceKeypoint.new(0, Color3.fromRGB(89, 89, 89)),
-                            ColorSequenceKeypoint.new(1, Color3.fromRGB(89, 89, 89)),
-                        }),
-                    })
-                    
-                    LoopPulse(Pill, 0)
-                end
-
-                return Frame, Gradient
-            end
-
-            local function MakeSmallChild(Parent, R, G, B)
-                local Frame = Nodes.New("Frame", {
-                    AnchorPoint = Vector2.new(0.5, 0.5),
-                    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundTransparency = 0,
-                    Name = "Child",
-                    Parent = Parent,
-                    Position = UDim2.new(0.5, 0, 0.5, 0),
-                    Size = UDim2.new(1, 0, 0, 20),
-                })
-                Nodes.New("UICorner", { CornerRadius = UDim.new(0, 5), Parent = Frame })
-                Nodes.New("UIGradient", {
-                    Parent = Frame,
-                    Color = ColorSequence.new({
-                        ColorSequenceKeypoint.new(0, Color3.fromRGB(R, G, B)),
-                        ColorSequenceKeypoint.new(1, Color3.fromRGB(R, G, B)),
-                    }),
-                })
-                return Frame
-            end
-
-            local ColumnA = MakeBigChild(Scale, 50, false)
-            local Small1 = MakeSmallChild(Scale, 55, 55, 55)
-            local Small2 = MakeSmallChild(Scale, 75, 75, 75)
-            local ColumnB = MakeBigChild(Scale, 50, false)
-            local Small3 = MakeSmallChild(Scale, 75, 75, 75)
-            local ColumnC = MakeBigChild(Scale, 65, true)
-
-            LoopPulse(Small1, 0)
-            LoopPulse(Small2, 0.25)
-            LoopPulse(Small3, 0.5)
-            
-            LoopPulse(ColumnB, 0)
-            LoopPulse(ColumnA, 0.25)
-            LoopPulse(ColumnC, 0.3)
-
-            local Delay = 0
-            
-            for _, Item in Scale:GetChildren() do
-                if Item:IsA("Frame") then
-                    local FinalPos = Item.Position
-                    Item.Position = UDim2.new(FinalPos.X.Scale, FinalPos.X.Offset, FinalPos.Y.Scale - 0.05, FinalPos.Y.Offset)
-
-                    local CapturedPos = FinalPos
-                    local CapturedDelay = Delay
-
-                    task.delay(CapturedDelay, function()
-                        Nodes.Tween(Item, {
-                            Time = 0.4,
-                            Style = 'Back',
-                            Direction = 'Out',
-                            Goal = { Position = CapturedPos }
-                        }):Play()
-                    end)
-
-                    Delay += 0.06
-                end
-            end
-            
-            Application.PageSetLoaded = function(Value)
-                __index.Visible = not Value
-                PageSkeletonLoad.Visible = Value
-            end
-        end)
-        
         Application:NewElement("./SearchResult", function()
             local Result = Nodes.New("Frame", {
                 BackgroundTransparency = 1,
@@ -3623,7 +3458,7 @@ Nodes.Application = function(Folder, Args)
                     ImageTransparency = 0.25,
                 })
             end
-            
+
             local Text = Nodes.New("Frame", {
                 BackgroundTransparency = 1,
                 Name = "Text",
@@ -3666,14 +3501,14 @@ Nodes.Application = function(Folder, Args)
                     TextTruncate = TextTruncate.AtEnd,
                 })
             end
-            
+
             Application.Signal:Connect(function(Type, Found)
                 if Type == 'SetResultPage' then
                     Result.Visible = Found
                 end
             end)
         end)
-        
+
         Application:NewElement("./WindowTools", function()
             local WindowTools = Nodes.New("Frame", {
                 AnchorPoint = Vector2.new(0.5, 0.5),
@@ -3722,7 +3557,7 @@ Nodes.Application = function(Folder, Args)
                     PaddingTop = UDim.new(0, 2),
                 })
             end
-            
+
             local FullScreen = Application:CreateTool(WindowTools, {
                 Name = "FullScreen",
                 Title = "Fullscreen",
@@ -3737,11 +3572,11 @@ Nodes.Application = function(Folder, Args)
                     BottomLeftRadius = UDim.new(0, 0),
                     Parent = FullScreen,
                 })
-                
+
                 Nodes.Button(FullScreen).MouseButton1Click:Connect(function()
                     WindowTools.Visible = false
                     Application.WindowToolsOpened = false
-                    
+
                     Application.Signal:Fire('FullScreen')
                 end)
             end
@@ -3756,7 +3591,7 @@ Nodes.Application = function(Folder, Args)
                 Nodes.Button(Collapse).MouseButton1Click:Connect(function()
                     WindowTools.Visible = false
                     Application.WindowToolsOpened = false
-                    
+
                     Application.Signal:Fire('Collapse')
                 end)
             end
@@ -3775,10 +3610,10 @@ Nodes.Application = function(Folder, Args)
                     BottomLeftRadius = UDim.new(0, 16),
                     Parent = Close,
                 })
-                
+
                 Nodes.Button(Close).MouseButton1Click:Connect(function()
                     WindowTools.Visible = false
-                    
+
                     Application:Dialog({
                         Title = "Are you sure?",
                         Description = "to close window page.",
@@ -3786,7 +3621,7 @@ Nodes.Application = function(Folder, Args)
                         Icon = 71601463400945,
                         Callback = function(State)
                             Application.WindowToolsOpened = false
-                            
+
                             if State then
                                 Framework.ScreenGui:Destroy()
                             end
@@ -3794,7 +3629,7 @@ Nodes.Application = function(Folder, Args)
                     })
                 end)
             end
-            
+
             UserInputService.InputBegan:Connect(function(Input)
                 local Mouse = Player:GetMouse()
                 local MouseX, MouseY = Mouse.X, Mouse.Y
@@ -3816,12 +3651,12 @@ Nodes.Application = function(Folder, Args)
                     end
                 end
             end)
-            
+
             Application.Signal:Connect(function(Type, ToolButton)
                 if Type == 'OpenTools' then
                     Application.WindowToolsOpened = true
                     WindowTools.Visible = true
-                    
+
                     Nodes.Tween(WindowTools, {
                         Time = 0.3,
                         Style = 'Back',
@@ -3833,10 +3668,10 @@ Nodes.Application = function(Folder, Args)
                 end
             end)
         end)
-        
+
         Application:NewElement("./Head", function()
             local Signal = Application.Signal
-            
+
             local Head = Nodes.New("Frame", {
                 BackgroundColor3 = Color3.fromRGB(40, 40, 40),
                 Name = "Head",
@@ -3850,7 +3685,7 @@ Nodes.Application = function(Folder, Args)
                     BottomLeftRadius = UDim.new(0, 0),
                     Parent = Head,
                 })
-                
+
                 Framework.HeadCorner = Head.UICorner
             end
 
@@ -3890,7 +3725,7 @@ Nodes.Application = function(Folder, Args)
                     Image = "rbxassetid://104312702185319",
                     ImageContent = Content.fromUri("rbxassetid://104312702185319"),
                 }) 
-                
+
                 Nodes.Button(BackButton).MouseButton1Click:Connect(function()
                     Signal:Fire("PreviousTab", {
                         Icon = BackButton.ImageLabel,
@@ -3917,7 +3752,7 @@ Nodes.Application = function(Folder, Args)
                     ImageTransparency = 0.6,
                     ImageContent = Content.fromUri("rbxassetid://130050888244501"),
                 }) 
-                
+
                 Nodes.Button(NextButton).MouseButton1Click:Connect(function()
                     Signal:Fire("NextTab", {
                         Icon = NextButton.ImageLabel,
@@ -4008,12 +3843,12 @@ Nodes.Application = function(Folder, Args)
                     Image = "rbxassetid://84570865508509",
                     ImageContent = Content.fromUri("rbxassetid://84570865508509"),
                 }) 
-                
+
                 Nodes.Button(ToolsButton).MouseButton1Click:Connect(function()
                     Signal:Fire('OpenTools', ToolsButton)
                 end)
             end
-            
+
             local Search = Nodes.New("Frame", {
                 Name = "Search",
                 Parent = Left,
@@ -4062,7 +3897,7 @@ Nodes.Application = function(Folder, Args)
                     Parent = __search,
                     PaddingRight = UDim.new(0, 8),
                 })
-                
+
                 Nodes.New("TextBox", {
                     Parent = __search,
                     Size = UDim2.new(1, -35, 1, 0),
@@ -4082,10 +3917,10 @@ Nodes.Application = function(Folder, Args)
                     Signal:Fire("UpdateLine")
                     Signal:Fire("OptionSearch", __search.TextBox.Text)
                 end)
-                
+
                 Framework.MainSearch = __search.TextBox
             end
-            
+
             function Application:GetOrderByIndex()
                 for _, TabModule in self.Tabs do
                     if TabModule.Index == PageLayout.CurrentPage then
@@ -4093,7 +3928,7 @@ Nodes.Application = function(Folder, Args)
                     end
                 end
             end
-            
+
             function Application:GetTargetOrder(Type)
                 local CurrentOrder = self:GetOrderByIndex()
 
@@ -4105,7 +3940,7 @@ Nodes.Application = function(Folder, Args)
 
                 return TargetOrder, self.Tabs[TargetOrder]
             end
-            
+
             Signal:Connect(function(Type, Info)
                 if Type == "OptionSearch" and Framework.Pages then
                     local Found = false
@@ -4232,7 +4067,7 @@ Nodes.Application = function(Folder, Args)
 
                     return nil
                 end
-                
+
                 if Type == "Collapse" then
                     Application.IsCollapseTab = not Application.IsCollapseTab
 
@@ -4294,7 +4129,7 @@ Nodes.Application = function(Folder, Args)
 
                     return nil
                 end
-                
+
                 if Type == 'TextChanged' then
                     if Info[3] then
                         local TotalTabs = #Application.Tabs
@@ -4309,26 +4144,40 @@ Nodes.Application = function(Folder, Args)
                             Goal = { ImageTransparency = (TotalTabs <= 1 or Info[3] >= TotalTabs) and 0.6 or 0 },
                         }):Play() 
                     end
-                    
+
                     Title.Text = Info[1]
                     Desc.Text = Info[2]
+
+                    if Nodes.IsThaiCharacter(Info[2]) then
+                        Text.UIListLayout.Padding = UDim.new(0, 0)
+                        Desc.TextSize = 14
+                    else
+                        Text.UIListLayout.Padding = UDim.new(0, 2)
+                        Desc.TextSize = 12
+                    end
+
+                    if Nodes.IsThaiCharacter(Info[1]) then
+                        Title.TextSize = 16
+                    else
+                        Title.TextSize = 15
+                    end
                 end
             end)
         end)
-        
+
         Framework.Pages = __index
         Framework.PageLayout = PageLayout
     end)
-    
+
     Application:NewElement("@Elements", function()
         local Elements = {} do
             Framework.Elements = Elements
         end
-        
+
         local Pages = Framework.Pages
         local PageLayout = Framework.PageLayout
         local Tabscrolling = Framework.Tabscrolling
-        
+
         function Application:MakeTab(Settings)
             local TabModule = {
                 Tweenings = {},
@@ -4337,7 +4186,10 @@ Nodes.Application = function(Folder, Args)
                 Title = Settings.Title,
                 Description = Settings.Description,
             }
-            
+
+            local IsThai = TabModule.Description and Nodes.IsThaiCharacter(TabModule.Description)
+            local LayoutPadding = IsThai and 0 or 2
+
             Application:NewElement("./PageComponents", function()
                 local NewPage = Nodes.New("ScrollingFrame", {
                     BackgroundTransparency = 1,
@@ -4362,10 +4214,10 @@ Nodes.Application = function(Folder, Args)
                         PaddingTop = UDim.new(0, 10),
                     })
                 end
-                
+
                 TabModule.Index = NewPage
             end)
-            
+
             Application:NewElement("./TabComponents", function()
                 local NewTab = Nodes.New("Frame", {
                     BackgroundTransparency = 1,
@@ -4373,7 +4225,7 @@ Nodes.Application = function(Folder, Args)
                     Parent = Tabscrolling,
                     Size = UDim2.new(1, 0, 0, 50),
                 })
-                
+
                 NewTab:SetAttribute('OnPage', false)
 
                 local Left = Nodes.New("Frame", {
@@ -4383,7 +4235,7 @@ Nodes.Application = function(Folder, Args)
                     Size = UDim2.new(1, 0, 1, 0),
                 }) do
                     Nodes.New("UIListLayout", {
-                        Padding = UDim.new(0, 2),
+                        Padding = UDim.new(0, LayoutPadding),
                         Parent = Left,
                         SortOrder = SortOrder.LayoutOrder,
                         VerticalAlignment = VerticalAlignment.Center,
@@ -4454,7 +4306,7 @@ Nodes.Application = function(Folder, Args)
                         PaddingRight = UDim.new(0, 20),
                     })
                 end
-                
+
                 local ScaleLucide = Nodes.New("Frame", {
                     BackgroundTransparency = 1,
                     Name = "ScaleLucide",
@@ -4480,12 +4332,12 @@ Nodes.Application = function(Folder, Args)
                     BackgroundTransparency = 1,
                     Size = UDim2.new(0, 5, 0, 0)
                 })
-                
+
                 TabModule.Text = {
                     Title = Title,
                     Footer = Footer
                 }
-                
+
                 TabModule.Tab = NewTab
                 TabModule.Lucide = Lucide
                 TabModule.Order = #Application.Tabs + 1
@@ -4550,20 +4402,20 @@ Nodes.Application = function(Folder, Args)
                     },
                 }
             end)
-            
+
             local Tab = TabModule.Tab
             local Page = TabModule.Index
             local Tweenings = TabModule.Tweenings['@TabComponents']
-            
+
             Page.UIListLayout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
                 Page.CanvasSize = UDim2.new(0, 0, 0, Page.UIListLayout.AbsoluteContentSize.Y + 20)
             end)
-            
+
             TabModule.BindToSelect = function(SelectTab, IsSelected, CurrentOrder)
                 SelectTab:SetAttribute("OnPage", IsSelected)
 
                 local State = IsSelected and "Selected" or "UnSelect"
-                
+
                 Nodes.ScrollTo(Tabscrolling, SelectTab)
 
                 Nodes.MultiTweens(
@@ -4575,7 +4427,6 @@ Nodes.Application = function(Folder, Args)
                     SelectTab.Actived,
                     Tweenings.Actived[State]
                 )
-
                 Nodes.MultiTweens(
                     SelectTab.Right.ScaleLucide.Lucide,
                     Tweenings.Lucide[State]
@@ -4591,78 +4442,64 @@ Nodes.Application = function(Folder, Args)
                     CurrentOrder,
                 })
 
-                if Application.IsFirstRunning then
-                    Application.SelectTab = nil
-                    
-                    Application.PageSetLoaded(true)
-
-                    task.delay(2, function()
-                        Application.SelectTab = SelectTab
-                        Application.PageSetLoaded(false)
-                        PageLayout:JumpTo(Page)
-                        
-                        Application.IsFirstRunning = false
-                    end)
-                else
-                    Application.SelectTab = SelectTab
-                    PageLayout:JumpTo(Page) 
-                end
+                Application.SelectTab = SelectTab
+                PageLayout:JumpTo(Page) 
             end
-            
+
             TabModule.OnBindable = function(CurrentOrder)
                 Framework.MainSearch.Text = ""
-                
+
                 for _, v in Framework.Pages:GetChildren() do
                     if v.Name == 'NewPage' and v.Visible then
                         v.Visible = false
                     end
                 end
-                
+
                 for _, Frame in Tabscrolling:GetChildren() do
                     if Frame.Name == 'NewTab' then
                         TabModule.BindToSelect(Frame, false)
                     end
                 end
-                
+
                 Page.Visible = true
                 TabModule.BindToSelect(Tab, true, CurrentOrder)
             end
 
             Nodes.Button(Tab).MouseButton1Click:Connect(function()
-                if Application.IsFirstRunning then return end
-                
                 if not Tab:GetAttribute('OnPage') then
                     TabModule.OnBindable(TabModule.Order)
                 end
             end)
-            
+
             table.insert(Application.Tabs, TabModule)
+
             task.delay(0.15, function()
-                if TabModule.Selected then
+                if Application.IsFirstRunning then
                     TabModule.OnBindable(TabModule.Order)
+                    Application.IsFirstRunning = false
                 end
             end)
-            
+
             function TabModule:Switch()
                 if not Tab:GetAttribute('OnPage') then
                     TabModule.OnBindable(TabModule.Order)
                 end
             end
-            
+
             function TabModule:ScrollTo(Target)
                 if not Target then return end
                 if not Target:IsDescendantOf(Page) then return end
-                
+
                 task.delay(1, function()
                     Nodes.ScrollTo(Page, Target)
                 end)
             end
-            
+
             function TabModule:Section(Text)
                 local SectionModule = {
                     Title = Text
                 }
-                
+
                 local NewSection = Nodes.New("Frame", {
                     AutomaticSize = AutomaticSize.Y,
                     Size = UDim2.new(1, 0, 0, 0),
@@ -4837,7 +4674,7 @@ Nodes.Application = function(Folder, Args)
 
             return TabModule
         end
-        
+
         Application.Signal:Connect(function(Type, Info)
             if Type == 'Searchable' then
                 local Word = Info.Word
@@ -4883,7 +4720,7 @@ Nodes.Application = function(Folder, Args)
 
                 return nil
             end
-            
+
             if Type ~= "PreviousTab" and Type ~= "NextTab" then
                 return nil
             end
@@ -4892,10 +4729,10 @@ Nodes.Application = function(Folder, Args)
             if not Tab or not Order then return end
             Info.Function(); Tab.OnBindable(Order)
         end)
-        
+
         return Elements
     end)
-    
+
     Application:NewElement("@Pillow", function()
         local PillowScreen = Nodes.New("ScreenGui", {
             Name = Folder,
@@ -4903,7 +4740,7 @@ Nodes.Application = function(Folder, Args)
             ZIndexBehavior = Enum.ZIndexBehavior.Global,
             IgnoreGuiInset = true,
         })
-        
+
         local Pillow = Nodes.New("TextButton", {
             AnchorPoint = Vector2.new(0, 1),
             BackgroundTransparency = 1,
@@ -4948,7 +4785,7 @@ Nodes.Application = function(Folder, Args)
             Framework.Window.Visible = not Framework.Window.Visible
 
             Scale.Scale = 0.8
-            
+
             Nodes.Tween(Scale, {
                 Time = 0.35,
                 Style = "Back",
@@ -4961,7 +4798,7 @@ Nodes.Application = function(Folder, Args)
             return Cached.IsResizing
         end)
     end)
-    
+
     return Application
 end
 
