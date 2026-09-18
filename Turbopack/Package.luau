@@ -452,8 +452,8 @@ end)
 NewPackage("Plugins", function()
     local Plugins = {}
 
-    local Nodes = Importer("Components/Library")()
-    local Lucides = Importer("Components/Lucide")()
+    local Nodes = Importer("Turbopack/Components/Library")()
+    local Lucides = Importer("Turbopack/Components/Lucide")()
 
     local Configurators = Packages.Configurators
     local EachOthers = Packages.EachOthers
